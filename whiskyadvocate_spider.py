@@ -1,4 +1,4 @@
-from spider import Spider, Request
+from scrapy import Spider, Request
 from whiskyadvocate.items import WhiskyadvocateItem
 import re
 import math
@@ -6,10 +6,10 @@ import math
 class WhiskyAdvocateSpider(Spider):
 	name = 'whiskyadvocate_spider'
 	allowed_urls = ['https://www.whiskyadvocate.com']
-	start_urls = ['https://www.whiskyadvocate.com/ratings-reviews/?search=&submit=+&brand_id=0&rating=0&price=0&category=0&styles_id=0&issue_id=0']
+	start_urls = ['https://www.whiskyadvocate.com/ratings-reviews/?search=&submit=+&brand_id=0&rating=95-100&price=0&category=0&styles_id=0&issue_id=0']
 
 	def parse(self, response):
-		page_sort = ['95-100','90-94', '80-89', '70-79', '60-69']
+		page_sort = ['95-100','90-94++', '80-89', '70-79', '60-69']
 		result_urls = ['https://www.whiskyadvocate.com/ratings-reviews/?search=&submit=+&brand_id=0&rating={}&price=0&category=0&styles_id=0&issue_id=0'.format(x) for x in page_sort]
 		
 		# num_items_str = response.xpath('//div[@class="wrap"]/text()').extract()
@@ -22,21 +22,24 @@ class WhiskyAdvocateSpider(Spider):
 
 	def parse_result_page(self, response):
 		blocks = response.xpath('//div[@class="m-all t-1of3 d-1of3 col cf align-items-stretch showmore"]')
-
+		
 		for block in blocks:
-			brand, abv = response.xpath('//h1[@itemprop="name"]/text()').extract().split(', ')
-			abv = float(round(abv, 1))
-			rating = int(response.xpath('//h2/span[@itemprop="ratingValue"]/text()').extract())
-			style = response.xpath('//span/span[@itemprop="category"]/text()').extract()
-			price = int(response.xpath('//span/span[@content="USD"]/text()').extract())
-			review =  response.xpath('//div[@itemprop="description"]/p/text()').extract()
-			reviewer = response.xpath('//div/p/span[@itemprop="author"]/text()').extract()
+			brand= block.xpath('.//h1[@itemprop="name"]/text()').extract_first()
+			rating = int(block.xpath('.//h2/span[@itemprop="ratingValue"]/text()').extract_first())
+			category = block.xpath('.//span/span[@itemprop="category"]/text()').extract_first()
+			if ',' in block.xpath('.//span/span[@content="50.00"]/text()').extract_first():
+				price = float(re.findall('\d+', block.xpath('.//span/span[@content="50.00"]/text()').extract_first().replace(',',''))[0])
+			elif '\d+.[\d+]' in block.xpath('.//span/span[@content="50.00"]/text()').extract_first():
+				price = float(re.findall('\d+.[\d+]',block.xpath('.//span/span[@content="50.00"]/text()').extract_first())[0])
+			else:
+				price = float(re.findall('\d+', block.xpath('.//span/span[@content="50.00"]/text()').extract_first())[0])
+			review = block.xpath('.//div[@itemprop="description"]/p/text()').extract_first() or block.xpath('.//div/p/span[@style="font-weight: 400;"]/text()').extract_first() or block.xpath('.//span[@class="s1"]/text()').extract_first() or block.xpath('.//span[@style="letter-spacing: .05pt;"]/text()').extract_first()
+			reviewer = block.xpath('.//div/p/span[@itemprop="author"]/text()').extract_first()
 
 			item = WhiskyadvocateItem()
 			item['brand'] = brand
-			item['abv'] = abv
 			item['rating'] = rating
-			item['style'] = style
+			item['category'] = category
 			item['price'] = price
 			item['review'] = review
 			item['reviewer'] = reviewer
